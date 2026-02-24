@@ -1,4 +1,5 @@
 #!/bin/bash
+export PATH="/opt/homebrew/bin:$PATH"
 echo "=== INICIANDO APIS MOCK Y FLASK ==="
 
 if [ ! -f "wiremock-standalone-3.12.0.jar" ]; then
