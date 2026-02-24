@@ -1,3 +1,5 @@
 result.xml
 __pycache__
 .pytest_cache
+*.log
+test_output.txt
