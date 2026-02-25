@@ -147,3 +147,42 @@ Al repositorio original le faltaba la instrucción principal (el `Jenkinsfile`).
 ### 🏆 Resultado de Satisfacción
 Al concluir todos los pasos, la ejecución del Pipeline en Jenkins muestra una consola limpia pasando satisfactoriamente todas las directivas de pruebas del script, arrojando el anhelado título final:
 `Finished: SUCCESS`.
+
+
+---
+
+## 🌐 Reto 2: Distribución de Agentes y Roles
+
+Este reto explora el despliegue del trabajo a través de arquitecturas multi-nodo, liberando de carga al nodo principal de Jenkins (*Master* o *Built-In Node*) al delegar las tareas pesadas a agentes adicionales configurados local y remotamente.
+
+### 2.1 Configuración de Conexiones TCP y Creación del Agente
+1. **Apertura de puerto TCP:** Por defecto, Jenkins cierra sus puertos para esclavos. Desde `Manage Jenkins > Security`, habilitamos un puerto fijo (`50000`) en la sección *TCP port for inbound agents*.
+2. **Creación del Nodo (Agente):** En `Manage Jenkins > Nodes`, dimos de alta un nuevo "Permanent Agent" bautizado como `agente-mac`.
+   *   Se le asignó el directorio remoto exclusivo: `/Users/luis/Desktop/DDEVOPS 2026/Git DevOps/jenkins-agente`.
+   *   Se le asignó el label `agente-mac`.
+   *   Se eligió la conexión *"Launch agent by connecting it to the controller"*.
+3. **Lanzar el Agente:** Desde la terminal local en macOS, simulamos otra instancia descargando y ejecutando el agente oficial de Jenkins (`agent.jar`) con la clave secreta proporcionada para iniciar el hilo WebSocket:
+   ```bash
+   curl -sO http://localhost:8080/jnlpJars/agent.jar
+   java -jar agent.jar -url http://localhost:8080/ -secret [CLAVE_SECRETA] -name "agente-mac" -webSocket -workDir "/Users/luis/Desktop/DDEVOPS 2026/Git DevOps/jenkins-agente"
+   ```
+   *(La conexión fue exitosa obteniendo un estado "INFO: Connected").*
+
+### 2.2 Estrategia de Workspaces (stash y unstash)
+Dado que los pipelines distribuidos no comparten disco duro o variables entre Nodos, el código del **Jenkinsfile** tuvo que reescribirse para dividir las responsabilidades y asegurar la persistencia de datos del proyecto (`helloworld`) de una computadora a otra.
+
+*   **Etapa 1 (En el Nodo Master):** Se conecta a Github, descarga el proyecto y se utiliza el comando `stash` para comprimir/guardar toda la carpeta subiéndola virtualmente al gerente central de Jenkins.
+*   **Etapa 2 (En el Agente Mac):** El agente recibe la confirmación de inicio, solicita los datos a Jenkins mediante el comando `unstash` para descargar el código, compilarlo y ejecutar todas nuestras pruebas de Pytest.
+
+### 2.3 Variables de Entorno y Buenas Prácticas de Limpieza
+Para evidenciar claramente en los logs cómo Jenkins salta entre el *Master* y el *Agente*, introducimos en ambas etapas del Pipeline los siguientes comandos exigidos:
+```groovy
+sh 'whoami'
+sh 'hostname'
+sh 'echo ${WORKSPACE}'
+```
+Esto garantizó que en los logs de Jenkins figurara en qué ubicación técnica (`Built-In node` vs `agente-mac`) y ruta física operaba cada etapa.
+
+Finalmente, para evitar la saturación de archivos tras compilaciones largas (y como buena práctica DevOps prioritaria), agregamos la función `cleanWs()` al final de las etapas o dentro de la estrofa `post { always { } }`, garantizando una eliminación sistemática y recursiva del área de trabajo (workspace) una vez Jenkins finaliza sus pruebas en ese nodo.
+
+**Resultado Final:** La consola de log del *Build* exhibió los saltos de Nodo y concluyó de manera magistral validando el desarrollo multi-agente (`Finished: SUCCESS`).
